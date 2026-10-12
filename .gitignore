@@ -153,3 +153,9 @@ vite.config.ts.timestamp-*
 *.sqlite-wal
 *.sqlite-shm
 *.sqlite-journal
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+__pycache__/
+*.pyc

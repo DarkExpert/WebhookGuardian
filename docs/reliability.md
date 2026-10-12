@@ -13,6 +13,7 @@ npm run build
 npm run typecheck
 npm test
 npm audit
+npm run demo
 python -B -m unittest discover -s examples/python-simulator -v
 ```
 
@@ -185,4 +186,46 @@ The service calls no external APIs and processes no real payments. Storage error
 lost acknowledgements and contention may require sender retries. No application
 retry loop, queue, recovery worker, monitoring service or provider adapter was added.
 Real integrations, advanced recovery, monitoring and cloud deployment remain outside
-the Community implementation. WG-003 is not implemented.
+the Community implementation. Public demo and CI preparation add no provider or
+backend integrations. See [architecture](architecture.md) and the
+[draft release notes](release-notes-v0.1.0.md).
+
+## Isolated public demo
+
+`npm run demo` builds the source and runs [run-demo.mjs](../scripts/run-demo.mjs).
+The runner creates a new OS temporary directory and SQLite file, generates a random
+development-only secret, and starts the unchanged Fastify app in an owned child
+through [demo-server.mjs](../scripts/demo-server.mjs). It binds loopback port 0 and
+reports the assigned address over IPC after listening; no fixed sleep or guessed
+port is used. The normal executable's PORT validation remains unchanged.
+
+The existing Python simulator receives this temporary endpoint/database and performs
+100 deliveries for 10 events, checking outcomes per identity and persisted rows,
+plus one invalid signature. After the server exits, the runner independently reopens
+SQLite and asserts 10 completed inbox rows and 10 corresponding activations.
+Only then are temporary files removed and the PASS summary printed. It ignores the
+user's DATABASE_PATH and .env and does not access an existing application database.
+
+Startup has a 15-second deadline, Python discovery 3 seconds per candidate, simulator
+execution 60 seconds, each HTTP request 10 seconds, and owned-child/file cleanup
+5 seconds. A child that does not close gracefully is forcibly terminated; failures
+remain nonzero even if cleanup later succeeds. If child closure cannot be confirmed,
+files are retained and the runner reports cleanup failure rather than deleting an
+in-use database. Only stored child handles are signaled; there is no process scanning
+or unrelated PID termination. Set PYTHON to an executable path when discovery cannot
+find Python 3.9+; no user-installed Python packages are needed.
+
+The [GitHub Actions workflow](../.github/workflows/ci.yml) runs the complete Node and
+Python checks and this demo on Ubuntu 24.04, with read-only token permissions and
+official SHA-pinned actions. No user secrets, database uploads or log artifacts are
+used. A successful local/WSL run is not evidence that hosted Actions has executed.
+
+Fresh WG-003 verification on 2026-10-12 passed npm ci, build, typecheck, all 58 Node
+tests and nine Python regressions on Windows and Ubuntu 24.04 WSL. Both npm run demo
+runs produced 100 deliveries, 10 Processed, 90 Duplicate, 10 SQLite-verified
+activations and one invalid-signature rejection, with the parent confirming 10
+completed inbox rows and 10 activation rows after shutdown. Missing-Python failure
+checks exited 1 and removed their temporary directories. Ubuntu also exercised a
+simulator-child exit failure with successful cleanup. No owned demo/reliability
+workers remained after the success and failure checks. Audit reported zero
+vulnerabilities; the hosted Actions workflow has not yet run for these changes.
