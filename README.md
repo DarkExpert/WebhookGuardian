@@ -131,9 +131,41 @@ application restart and database inspection.
 Tests exercise signed HTTP behavior, raw bytes, validation, conflicts, concurrent
 requests through two connections, business uniqueness, restart persistence, and a
 SQLite trigger aborting completion after activation to prove full rollback.
-Concurrent inject requests share a Node event loop; this is not a multi-process load
-test. Power-loss/process-kill recovery is a SQLite transaction property, not a
-fault-injection claim demonstrated by this test suite.
+WG-002 adds separate Node process tests for concurrent HTTP delivery and writer-lock
+contention, plus controlled before/after-COMMIT child termination and restart tests.
+Crash instrumentation exists only in a test harness; the production server has no
+fault-injection switches or HTTP hooks. These tests terminate processes, not the
+operating system or storage hardware. See [reliability details](docs/reliability.md).
+
+## Python reliability demo
+
+Python 3.9+ and its standard library are sufficient; no pip packages are needed.
+Start Guardian with a persistent local database. In another terminal, set
+`MOCK_WEBHOOK_SECRET` to the same development secret used by Guardian (the Python
+script reads the environment and does not load `.env` automatically), then run:
+
+```powershell
+python examples/python-simulator/simulator.py --database ./guardian.sqlite
+```
+
+The defaults send 100 valid deliveries across 10 unique events using 8 workers,
+plus one invalid signature. Totals are computed from actual responses. With
+`--database`, completion records, content and activations for this run are checked
+read-only; otherwise the summary explicitly says verification is API-only.
+Each invocation creates a fresh event/payment namespace. Configure `--endpoint`,
+`--events`, `--deliveries`, `--workers`, `--timeout` or `--retries` as needed; see
+`--help` and [reliability documentation](docs/reliability.md). Failures exit nonzero.
+Verification checks responses per submitted event and payment, so matching aggregate
+totals cannot hide repeated processing of one event or missing processing of another.
+Run the controlled-response regressions with:
+
+```text
+python -B -m unittest discover -s examples/python-simulator -v
+```
+
+The instrumented Node tests confirm SQLite lock error codes privately before retrying
+a generic 503. Ordinary clients, including the Python simulator, cannot distinguish
+lock contention from other internal failures through the public HTTP API.
 
 ## Scope and limitations
 
@@ -149,4 +181,5 @@ deleting data removes duplicate protection.
 
 Planned commercial boundaries: real provider adapters, customer backend integrations,
 advanced recovery, monitoring and cloud deployment. These are excluded from this
-Community foundation, together with WG-002/WG-003 and any frontend.
+Community foundation, together with WG-003 and any frontend. WG-002 provides
+reliability verification and a mock sender, without extending the product API.
