@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "1",
+  "eventId": "evt_demo_001",
+  "eventType": "payment.completed",
+  "occurredAt": "2026-10-12T12:00:00Z",
+  "paymentId": "pay_demo_001"
+}
